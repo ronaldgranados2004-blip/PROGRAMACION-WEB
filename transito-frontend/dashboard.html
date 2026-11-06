@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mitramite Express - Panel de Control</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { display: flex; height: 100vh; background-color: #f1f5f9; color: #1e293b; overflow: hidden; }
+        
+        /* Sidebar */
+        aside { width: 260px; background-color: #0f172a; color: white; display: flex; flex-direction: column; padding: 20px; }
+        .logo-container { text-align: center; margin-bottom: 30px; }
+        .logo-container img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #3b82f6; }
+        .nav-btn { background: none; border: none; color: #94a3b8; padding: 12px 15px; text-align: left; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 6px; margin-bottom: 5px; transition: all 0.2s; }
+        .nav-btn:hover, .nav-btn.active { background-color: #1e293b; color: white; }
+        
+        /* Main Content */
+        main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+        header { background: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; }
+        .user-info { font-weight: 600; color: #334155; }
+        .btn-logout { background-color: #ef4444; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-logout:hover { background-color: #dc2626; }
+        
+        .content-body { padding: 30px; }
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+
+        /* Tarjetas KPI */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .kpi-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #3b82f6; }
+        .kpi-card h4 { font-size: 13px; color: #64748b; margin-bottom: 8px; text-transform: uppercase; }
+        .kpi-card .amount { font-size: 24px; font-weight: bold; color: #0f172a; }
+
+        /* Módulos de Agregar Ventas */
+        .modules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .module-card { background: white; padding: 25px; border-radius: 8px; text-align: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.2s, border-color 0.2s; border: 2px solid transparent; }
+        .module-card:hover { transform: translateY(-3px); border-color: #3b82f6; }
+        .module-card h3 { font-size: 16px; color: #1e293b; margin-top: 10px; }
+
+        /* Formularios y Tablas */
+        .form-container { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .table-responsive { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #e2e8f0; }
+        th { background-color: #f8fafc; color: #475569; font-weight: 600; }
+        
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-success { background-color: #dcfce7; color: #16a34a; }
+        .badge-warning { background-color: #fef9c3; color: #ca8a04; }
+        
+        .btn-primary { background-color: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-danger { background-color: #dc2626; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <!-- Menú Lateral Izquierdo -->
+    <aside>
+        <div class="logo-container">
+            <img src="logo.png" alt="Logo" onerror="this.src='https://via.placeholder.com/120'">
+            <h3 style="margin-top: 10px; font-size: 14px;">MI TRAMITE EXPRESS</h3>
+        </div>
+        <button class="nav-btn active" onclick="cambiarVista('ventas', this)">AGREGAR VENTAS</button>
+        <button class="nav-btn" onclick="cambiarVista('abonos', this)">REALIZAR ABONOS</button>
+        <button class="nav-btn" onclick="cambiarVista('cuentas-pagar', this)">💳 CUENTAS POR PAGAR</button>
+        <button class="nav-btn" onclick="cambiarVista('buscar', this)">BUSCAR CLIENTE</button>
+        <button class="nav-btn" id="menuConsolidado" onclick="cambiarVista('consolidado', this)" style="display:none;">CONSOLIDADO</button>
+        <button class="nav-btn" onclick="cambiarVista('contraseñas', this)">GESTION DE CONTRASEÑAS</button>
+    </aside>
+
+    <!-- Contenido Principal -->
+    <main>
+        <header>
+            <h2>Mitramite Express - Panel de Control</h2>
+            <div>
+                <span class="user-info" id="nombreUsuarioLabel">Cargando...</span>
+                <button class="btn-logout" onclick="cerrarSesion()">Cerrar Sesión</button>
+            </div>
+        </header>
+
+        <div class="content-body">
+
+            <!-- VISTA: AGREGAR VENTAS -->
+            <div id="view-ventas" class="view-section active">
+                <div id="selectorModulos">
+                    <h2>Seleccione el Módulo de Trámite</h2>
+                    <p style="color: #64748b; margin-bottom: 20px;">Elija la categoría correspondiente para registrar la venta.</p>
+                    <div class="modules-grid">
+                        <div class="module-card" onclick="abrirModuloForm('RUNT')">
+                            <span style="font-size: 32px;">🚗</span>
+                            <h3>Módulo RUNT</h3>
+                        </div>
+                        <div class="module-card" onclick="abrirModuloForm('Licencias')">
+                            <span style="font-size: 32px;">🪪</span>
+                            <h3>Licencias</h3>
+                        </div>
+                        <div class="module-card" onclick="abrirModuloForm('Exámenes')">
+                            <span style="font-size: 32px;">🩺</span>
+                            <h3>Exámenes (CRC Balcanes)</h3>
+                        </div>
+                        <div class="module-card" onclick="abrirModuloForm('Cursos Viales')">
+                            <span style="font-size: 32px;">🚦</span>
+                            <h3>Cursos Viales (CIA VIP)</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulario dinámico -->
+                <div id="contenedorFormulario" class="form-container" style="display: none;">
+                    <button class="btn-primary" style="background-color: #64748b; margin-bottom: 20px;" onclick="volverAModulos()">← Volver a Módulos</button>
+                    <h3 id="tituloFormModulo" style="margin-bottom: 20px;">Registro de Trámite</h3>
+                    <form id="formTramiteUnificado" onsubmit="guardarTramite(event)">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">N° de Recibo Físico:</label>
+                                <input type="text" id="reciboFisico" required placeholder="Ej: 000001" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            </div>
+                            <div>
+                                <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;" id="labelSubTipo">Tipo de Trámite:</label>
+                                <select id="selectSubTipo" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                    <!-- Se llena dinámicamente -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">Nombres y Apellidos del Cliente:</label>
+                                <input type="text" id="nombreCliente" required placeholder="Nombre completo" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            </div>
+                            <div>
+                                <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">Tipo de Documento:</label>
+                                <select id="tipoDocCliente" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                    <option value="Cédula de Ciudadanía">Cédula de Ciudadanía</option>
+                                    <option value="Cédula de Extranjería">Cédula de Extranjería</option>
+                                    <option value="PPT">PPT (Permiso por Protección Temporal)</option>
+                                    <option value="NIT">NIT</option>
+                                    <option value="Pasaporte">Pasaporte</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">N° de Documento:</label>
+                                <input type="text" id="numDocCliente" required placeholder="Número de documento" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            </div>
+                            <div>
+                                <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">Fecha y Hora de Registro:</label>
+                                <input type="datetime-local" id="fechaRegistroCustom" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                <small style="color: #64748b;">Déjalo como esté para usar la hora actual.</small>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div>
+                                <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">Valor Total a Cobrar ($):</label>
+                                <input type="number" id="valorCliente" required placeholder="0" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            </div>
+                            <div>
+                                <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">Total Abonado ($):</label>
+                                <input type="number" id="totalAbonado" required placeholder="0" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-primary" style="width: 100%; padding: 12px; font-size: 15px;">💾 Guardar Trámite</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- VISTA: REALIZAR ABONOS -->
+            <div id="view-abonos" class="view-section">
+                <h2>Realizar Abonos a Trámites Pendientes</h2>
+                <p>Busca un trámite para registrar un nuevo abono a su saldo pendiente.</p>
+            </div>
+
+            <!-- VISTA: CUENTAS POR PAGAR (PROVEEDORES) -->
+            <div id="view-cuentas-pagar" class="view-section">
+                <h2>💳 Cuentas por Pagar a Proveedores</h2>
+                <p>Filtra por mes y proveedor para auditar deudas y cambiar el estado de pago.</p>
+
+                <div style="display: flex; gap: 20px; margin-top: 20px; align-items: flex-start;">
+                    
+                    <!-- PANEL DE FILTROS A LA IZQUIERDA -->
+                    <div style="width: 280px; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #cbd5e1; flex-shrink: 0;">
+                        <h3 style="font-size: 15px; margin-bottom: 15px; color: #1e293b;">🔍 Filtros de Búsqueda</h3>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Filtrar por Mes:</label>
+                            <input type="month" id="filtroMesCia" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="filtrarCuentasPagar()">
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Proveedor / Servicio:</label>
+                            <select id="filtroProveedorCia" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="filtrarCuentasPagar()">
+                                <option value="TODOS">Todos los Proveedores</option>
+                                <option value="CIA Cali">RUNT (CIA Cali)</option>
+                                <option value="CRC Balcanes">Exámenes (CRC Balcanes)</option>
+                                <option value="CIA VIP">Cursos Viales (CIA VIP)</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Estado de Pago:</label>
+                            <select id="filtroEstadoCia" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="filtrarCuentasPagar()">
+                                <option value="TODOS">Todos</option>
+                                <option value="Pendiente">Pendiente</option>
+                                <option value="Pagado">Pagado</option>
+                            </select>
+                        </div>
+
+                        <button class="btn-primary" style="width: 100%; padding: 8px; font-size: 13px;" onclick="limpiarFiltrosCia()">Limpiar Filtros</button>
+                    </div>
+
+                    <!-- TABLA Y RESUMEN A LA DERECHA -->
+                    <div style="flex: 1; overflow-x: auto;">
+                        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 20px;">
+                            <div class="kpi-card" style="border-left-color: #dc2626;">
+                                <h4>Total Deuda Seleccionada</h4>
+                                <div class="amount" id="kpiDeudaFiltrada" style="color: #dc2626;">$ 0</div>
+                            </div>
+                            <div class="kpi-card" style="border-left-color: #2563eb;">
+                                <h4>Trámites Encontrados</h4>
+                                <div class="amount" id="kpiCantTramitesCia">0</div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Recibo #</th>
+                                        <th>Trámite / Proveedor</th>
+                                        <th>Cliente</th>
+                                        <th>Costo Proveedor</th>
+                                        <th>Estado Pago</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaCuentasPagarBody">
+                                    <!-- Llenado dinámico -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- VISTA: BUSCAR CLIENTE -->
+            <div id="view-buscar" class="view-section">
+                <h2>Buscar Clientes y Trámites</h2>
+                <p>Consulta registros anteriores por nombre, documento o recibo.</p>
+            </div>
+
+            <!-- VISTA: CONSOLIDADO (Solo Admin) -->
+            <div id="view-consolidado" class="view-section">
+                <h2>Consolidado Financiero General</h2>
+                <div class="kpi-grid">
+                    <div class="kpi-card" style="border-left-color: #2563eb;">
+                        <h4>Ventas Totales</h4>
+                        <div class="amount" id="kpiTotalVentas">$ 0</div>
+                    </div>
+                    <div class="kpi-card" style="border-left-color: #16a34a;">
+                        <h4>Total Recaudado en Caja</h4>
+                        <div class="amount" id="kpiTotalRecaudado" style="color: #16a34a;">$ 0</div>
+                    </div>
+                    <div class="kpi-card" style="border-left-color: #dc2626;">
+                        <h4>Costos Proveedores (CIA)</h4>
+                        <div class="amount" id="kpiTotalCostosCia" style="color: #dc2626;">$ 0</div>
+                    </div>
+                    <div class="kpi-card" style="border-left-color: #059669;">
+                        <h4>Ganancia Neta Empresa</h4>
+                        <div class="amount" id="kpiGananciaNeta" style="color: #059669;">$ 0</div>
+                    </div>
+                </div>
+
+                <h3>Desglose de Trámites Registrados</h3>
+                <div class="table-responsive" style="margin-top: 15px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Recibo</th>
+                                <th>Módulo / Trámite</th>
+                                <th>Cliente</th>
+                                <th>Valor Total</th>
+                                <th>Abonado</th>
+                                <th>Saldo</th>
+                                <th>Estado</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaConsolidadoBody">
+                            <!-- Llenado dinámico -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- VISTA: GESTIÓN DE CONTRASEÑAS -->
+            <div id="view-contraseñas" class="view-section">
+                <h2>Gestión de Contraseñas</h2>
+                <p>Actualiza tu contraseña de acceso al sistema.</p>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        let usuarioActual = null;
+        let moduloSeleccionadoActual = '';
+        let listaGlobalTramitesCia = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            verificarSesion();
+            cargarDatosConsolidado();
+        });
+
+        function cambiarVista(nombreVista, botonElem) {
+            document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+
+            document.getElementById(`view-${nombreVista}`).classList.add('active');
+            if (botonElem) botonElem.classList.add('active');
+
+            if (nombreVista === 'consolidado') {
+                cargarDatosConsolidado();
+            } else if (nombreVista === 'cuentas-pagar') {
+                cargarCuentasPorPagar();
+            }
+        }
+
+        function verificarSesion() {
+            const token = localStorage.getItem('token');
+            const usuarioStr = localStorage.getItem('usuario');
+
+            if (!token || !usuarioStr) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            usuarioActual = JSON.parse(usuarioStr);
+            document.getElementById('nombreUsuarioLabel').textContent = `${usuarioActual.nombre} (${usuarioActual.rol})`;
+
+            if (usuarioActual.rol === 'ADMIN') {
+                document.getElementById('menuConsolidado').style.display = 'block';
+            }
+        }
+
+        function cerrarSesion() {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        // --- LÓGICA DE MÓDULOS Y FORMULARIOS ---
+        function abrirModuloForm(modulo) {
+            moduloSeleccionadoActual = modulo;
+            document.getElementById('selectorModulos').style.display = 'none';
+            document.getElementById('contenedorFormulario').style.display = 'block';
+            document.getElementById('tituloFormModulo').textContent = `Registro - Módulo ${modulo}`;
+
+            const selectSub = document.getElementById('selectSubTipo');
+            selectSub.innerHTML = '';
+
+            if (modulo === 'RUNT') {
+                ['Inscripción RUNT', 'Actualización de Datos', 'Traspaso / Levantamiento de Prenda'].forEach(opt => {
+                    selectSub.innerHTML += `<option value="${opt}">${opt}</option>`;
+                });
+            } else if (modulo === 'Licencias') {
+                ['Expedición de Licencia', 'Renovación de Licencia', 'Recategorización'].forEach(opt => {
+                    selectSub.innerHTML += `<option value="${opt}">${opt}</option>`;
+                });
+            } else if (modulo === 'Exámenes') {
+                ['Examen Médico Psicosensométrico (CRC Balcanes)'].forEach(opt => {
+                    selectSub.innerHTML += `<option value="${opt}">${opt}</option>`;
+                });
+            } else if (modulo === 'Cursos Viales') {
+                ['Curso de Conducción / Vial (CIA VIP)'].forEach(opt => {
+                    selectSub.innerHTML += `<option value="${opt}">${opt}</option>`;
+                });
+            }
+        }
+
+        function volverAModulos() {
+            document.getElementById('contenedorFormulario').style.display = 'none';
+            document.getElementById('selectorModulos').style.display = 'block';
+            document.getElementById('formTramiteUnificado').reset();
+        }
+
+        async function guardarTramite(event) {
+            event.preventDefault();
+            const token = localStorage.getItem('token');
+
+            const numeroReciboFisico = document.getElementById('reciboFisico').value;
+            const subTipo = document.getElementById('selectSubTipo').value;
+            const tipoTramite = `${moduloSeleccionadoActual} - ${subTipo}`;
+            const nombresApellidos = document.getElementById('nombreCliente').value;
+            const tipoDocumento = document.getElementById('tipoDocCliente').value;
+            const numeroDocumento = document.getElementById('numDocCliente').value;
+            const fechaCustom = document.getElementById('fechaRegistroCustom').value;
+            
+            const valorCliente = Number(document.getElementById('valorCliente').value);
+            const totalAbonado = Number(document.getElementById('totalAbonado').value);
+
+            const datosEnvio = {
+                numeroReciboFisico,
+                tipoTramite,
+                nombresApellidos,
+                tipoDocumento,
+                numeroDocumento,
+                fechaRegistro: fechaCustom ? new Date(fechaCustom) : undefined,
+                transaccion: {
+                    valorCliente,
+                    totalAbonado
+                }
+            };
+
+            try {
+                const res = await fetch('http://localhost:4000/api/tramites', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(datosEnvio)
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Error al registrar el trámite");
+
+                alert("¡Trámite registrado con éxito!");
+                volverAModulos();
+                cargarDatosConsolidado();
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+
+        async function cargarDatosConsolidado() {
+            const token = localStorage.getItem('token');
+            const tbody = document.getElementById('tablaConsolidadoBody');
+            if (!tbody) return;
+
+            try {
+                const res = await fetch('http://localhost:4000/api/tramites', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error("Error al obtener datos");
+
+                const tramites = await res.json();
+                tbody.innerHTML = '';
+
+                let totalVentas = 0;
+                let totalRecaudado = 0;
+                let totalCostosCia = 0;
+
+                tramites.forEach(t => {
+                    const valorTotal = t.transaccion?.valorCliente || 0;
+                    const abonado = t.transaccion?.totalAbonado || 0;
+                    const saldo = t.transaccion?.saldoPendiente || 0;
+                    const costoCia = t.transaccion?.costoCia || 0;
+                    const estado = t.transaccion?.estadoPago || 'Abonado';
+                    const fecha = t.fechaRegistro ? new Date(t.fechaRegistro).toLocaleDateString() : 'N/A';
+
+                    totalVentas += valorTotal;
+                    totalRecaudado += abonado;
+                    totalCostosCia += costoCia;
+
+                    const badgeClass = estado === 'Cancelado' ? 'badge-success' : 'badge-warning';
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${fecha}</td>
+                        <td><strong>${t.numeroReciboFisico}</strong></td>
+                        <td>${t.tipoTramite}</td>
+                        <td>${t.nombresApellidos}</td>
+                        <td>$ ${valorTotal.toLocaleString()}</td>
+                        <td>$ ${abonado.toLocaleString()}</td>
+                        <td style="color: #dc2626; font-weight: bold;">$ ${saldo.toLocaleString()}</td>
+                        <td><span class="badge ${badgeClass}">${estado}</span></td>
+                        <td>
+                            ${usuarioActual?.rol === 'ADMIN' ? `<button class="btn-danger" onclick="eliminarTramite('${t._id}')">Eliminar</button>` : 'N/A'}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                const gananciaNeta = totalVentas - totalCostosCia;
+
+                document.getElementById('kpiTotalVentas').textContent = `$ ${totalVentas.toLocaleString()}`;
+                document.getElementById('kpiTotalRecaudado').textContent = `$ ${totalRecaudado.toLocaleString()}`;
+                document.getElementById('kpiTotalCostosCia').textContent = `$ ${totalCostosCia.toLocaleString()}`;
+                document.getElementById('kpiGananciaNeta').textContent = `$ ${gananciaNeta.toLocaleString()}`;
+
+            } catch (err) {
+                console.error("Error cargando consolidado:", err);
+            }
+        }
+
+        async function cargarCuentasPorPagar() {
+            const token = localStorage.getItem('token');
+            const tbody = document.getElementById('tablaCuentasPagarBody');
+            if (!tbody) return;
+
+            try {
+                const res = await fetch('http://localhost:4000/api/tramites', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error("Error al obtener los datos");
+
+                const tramites = await res.json();
+                
+                // Filtramos todos los trámites que tengan un costo CIA asignado mayor a 0
+                listaGlobalTramitesCia = tramites.filter(t => {
+                    const costo = t.transaccion?.costoCia || 0;
+                    return costo > 0;
+                });
+
+                filtrarCuentasPagar();
+            } catch (err) {
+                console.error("Error al cargar cuentas por pagar:", err);
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #dc2626;">Error al cargar las deudas con proveedores.</td></tr>`;
+            }
+        }
+
+        function filtrarCuentasPagar() {
+            const mesFiltro = document.getElementById('filtroMesCia').value; // Formato YYYY-MM
+            const provFiltro = document.getElementById('filtroProveedorCia').value;
+            const estadoFiltro = document.getElementById('filtroEstadoCia').value;
+            const tbody = document.getElementById('tablaCuentasPagarBody');
+
+            let filtrados = listaGlobalTramitesCia.filter(t => {
+                const fechaObj = new Date(t.fechaRegistro || t.createdAt);
+                const anioMes = fechaObj.toISOString().slice(0, 7); // YYYY-MM
+
+                const coincideMes = !mesFiltro || anioMes === mesFiltro;
+                const proveedor = t.transaccion?.proveedorCia || 'CIA Cali';
+                const coincideProv = provFiltro === 'TODOS' || proveedor.includes(provFiltro);
+                const estado = t.transaccion?.estadoPagoCia || 'Pendiente';
+                const coincideEstado = estadoFiltro === 'TODOS' || estado === estadoFiltro;
+
+                return coincideMes && coincideProv && coincideEstado;
+            });
+
+            tbody.innerHTML = '';
+            let totalDeuda = 0;
+
+            if (filtrados.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #64748b;">No se encontraron registros con los filtros seleccionados.</td></tr>`;
+                document.getElementById('kpiDeudaFiltrada').textContent = `$ 0`;
+                document.getElementById('kpiCantTramitesCia').textContent = `0`;
+                return;
+            }
+
+            filtrados.forEach(t => {
+                const costo = t.transaccion?.costoCia || 0;
+                totalDeuda += costo;
+                const estado = t.transaccion?.estadoPagoCia || 'Pendiente';
+                const fecha = t.fechaRegistro ? new Date(t.fechaRegistro).toLocaleDateString() : 'N/A';
+                const badgeClass = estado === 'Pagado' ? 'badge-success' : 'badge-warning';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${fecha}</td>
+                    <td><strong>${t.numeroReciboFisico}</strong></td>
+                    <td>${t.tipoTramite} <br><small style="color:#64748b;">${t.transaccion?.proveedorCia || 'CIA Cali'}</small></td>
+                    <td>${t.nombresApellidos}</td>
+                    <td style="color: #dc2626; font-weight: bold;">$ ${costo.toLocaleString()}</td>
+                    <td><span class="badge ${badgeClass}">${estado}</span></td>
+                    <td>
+                        <select onchange="cambiarEstadoCia('${t._id}', this.value)" style="padding: 4px; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 12px;">
+                            <option value="" disabled selected>Cambiar estado...</option>
+                            <option value="Pendiente">Marcar Pendiente</option>
+                            <option value="Pagado">Marcar Pagado</option>
+                        </select>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('kpiDeudaFiltrada').textContent = `$ ${totalDeuda.toLocaleString()}`;
+            document.getElementById('kpiCantTramitesCia').textContent = filtrados.length;
+        }
+
+        async function cambiarEstadoCia(idTramite, nuevoEstado) {
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch(`http://localhost:4000/api/tramites/pago-cia/${idTramite}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ estadoPagoCia: nuevoEstado })
+                });
+
+                if (!res.ok) throw new Error("No se pudo actualizar el estado");
+                cargarCuentasPorPagar();
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+
+        function limpiarFiltrosCia() {
+            document.getElementById('filtroMesCia').value = '';
+            document.getElementById('filtroProveedorCia').value = 'TODOS';
+            document.getElementById('filtroEstadoCia').value = 'TODOS';
+            filtrarCuentasPagar();
+        }
+
+        async function eliminarTramite(id) {
+            if (!confirm("¿Estás seguro de eliminar este registro?")) return;
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch(`http://localhost:4000/api/tramites/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error("Error al eliminar");
+                cargarDatosConsolidado();
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+    </script>
+</body>
+</html>

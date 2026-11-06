@@ -1,0 +1,109 @@
+const Runt = require('../models/Runt');
+
+const registrarRuntEmpleado = async (req, res) => {
+    try {
+        const {
+            numeroReciboFisico,
+            tipoDocumento,
+            numeroDocumento,
+            nombresApellidos,
+            gestionRunt,
+            tramitadorInfo,
+            metodoPagoPrincipal,
+            valorCliente,
+            montoAbonado,
+            observaciones
+        } = req.body;
+
+        if (!numeroReciboFisico || !gestionRunt?.tipoGestion || !valorCliente) {
+            return res.status(400).json({ error: "Faltan datos obligatorios para el trámite RUNT." });
+        }
+
+        const esSistecredito = metodoPagoPrincipal === 'Sistecredito';
+        const primerAbono = montoAbonado !== undefined ? Number(montoAbonado) : Number(valorCliente);
+        const saldoPendiente = valorCliente - primerAbono;
+        const estadoPago = saldoPendiente <= 0 ? 'Cancelado' : 'Abonado';
+
+        const nuevoRunt = new Runt({
+            numeroReciboFisico,
+            tipoDocumento,
+            numeroDocumento,
+            nombresApellidos,
+            gestionRunt: {
+                tipoGestion: gestionRunt.tipoGestion
+            },
+            tramitadorInfo: {
+                esDeTramitador: tramitadorInfo?.esDeTramitador || false,
+                nombreTramitador: tramitadorInfo?.esDeTramitador ? tramitadorInfo.nombreTramitador : ''
+            },
+            transaccion: {
+                metodoPagoPrincipal,
+                esSistecredito,
+                valorCliente,
+                totalAbonado: primerAbono,
+                saldoPendiente: saldoPendiente > 0 ? saldoPendiente : 0,
+                estadoPago,
+                historialAbonos: [{ numeroReciboFisico, monto: primerAbono, metodoPago: metodoPagoPrincipal }]
+            },
+            observaciones
+        });
+
+        const guardado = await nuevoRunt.save();
+        res.status(201).json({ mensaje: "Trámite RUNT registrado con éxito", datos: guardado });
+    } catch (error) {
+        if (error.code === 11000) return res.status(400).json({ error: "El número de recibo físico ya existe." });
+        res.status(500).json({ error: error.message });
+    }
+};
+
+const liquidarYEditarRuntAdmin = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { valorCliente, costoNetoRunt, comisionTramitador } = req.body;
+
+        const registro = await Runt.findById(id);
+        if (!registro) return res.status(404).json({ error: "Trámite RUNT no encontrado." });
+
+        if (valorCliente !== undefined) registro.transaccion.valorCliente = Number(valorCliente);
+        const costoRunt = costoNetoRunt !== undefined ? Number(costoNetoRunt) : registro.transaccion.costoNetoRunt;
+        const comision = comisionTramitador !== undefined ? Number(comisionTramitador) : registro.transaccion.comisionTramitador;
+
+        const valorTotal = registro.transaccion.valorCliente;
+        const gananciaContable = valorTotal - (costoRunt + comision);
+        const impactoCaja = registro.transaccion.esSistecredito ? 0 : gananciaContable;
+
+        registro.transaccion.costoNetoRunt = costoRunt;
+        registro.transaccion.comisionTramitador = comision;
+        registro.transaccion.gananciaContable = gananciaContable;
+        registro.transaccion.impactoEnCajaOperativa = impactoCaja;
+        registro.estadoLiquidacion = 'Liquidado';
+
+        const actualizado = await registro.save();
+        res.status(200).json({ mensaje: "Trámite RUNT liquidado correctamente", datos: actualizado });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Eliminar un trámite/cliente por ID (Solo Admin)
+const eliminarTramite = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tramiteEliminado = await Tramite.findByIdAndDelete(id);
+
+        if (!tramiteEliminado) {
+            return res.status(404).json({ error: "El registro no existe o ya fue eliminado." });
+        }
+
+        res.status(200).json({ mensaje: "Registro eliminado correctamente con éxito." });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = {
+    // ... tus otras funciones
+    eliminarTramite
+};
+
+module.exports = { registrarRuntEmpleado, liquidarYEditarRuntAdmin };
